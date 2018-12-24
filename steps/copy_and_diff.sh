@@ -1,4 +1,6 @@
 #!/bin/bash
-cp "$1" ./"$(basename $2)"
-git diff --color-words --no-index "$1" "$2"
-git diff --no-index "$1" "$2" | tail -n+3 > "$(basename $2)".diff
+stepFilename=$(basename $2)
+echo $stepFilename
+cp "$1" ./"$stepFilename"
+git diff --color-words --no-index "$2" "$stepFilename"
+git diff --no-index "$2" "$stepFilename" | tail -n+3 > "$stepFilename".diff
