@@ -1,0 +1,8 @@
+--- a/../main.cpp
++++ b/../../VulkanTutorial/code/00_base_code.cpp
+@@ -1,4 +1,4 @@
+-#include <vulkan/vulkan.hpp>
++#define GLFW_INCLUDE_VULKAN
+ #include <GLFW/glfw3.h>
+ 
+ #include <iostream>
