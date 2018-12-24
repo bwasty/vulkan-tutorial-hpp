@@ -8,6 +8,16 @@
 const int WIDTH = 800;
 const int HEIGHT = 600;
 
+const std::vector<const char*> validationLayers = {
+    "VK_LAYER_LUNARG_standard_validation"
+};
+
+#ifdef NDEBUG
+const bool enableValidationLayers = false;
+#else
+const bool enableValidationLayers = true;
+#endif
+
 class HelloTriangleApplication {
 public:
     void run() {
@@ -49,6 +59,10 @@ private:
     }
 
     void createInstance() {
+        if (enableValidationLayers && !checkValidationLayerSupport()) {
+            throw std::runtime_error("validation layers requested, but not available!");
+        }
+
         auto appInfo = vk::ApplicationInfo(
             "Hello Triangle",
             VK_MAKE_VERSION(1, 0, 0),
@@ -69,6 +83,11 @@ private:
             glfwExtensionCount, glfwExtensions // enabled extensions
         );
 
+        if (enableValidationLayers) {
+            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+            createInfo.ppEnabledLayerNames = validationLayers.data();
+        }
+
         try {
             instance = vk::createInstanceUnique(createInfo, nullptr);
         }
@@ -81,6 +100,33 @@ private:
         for (const auto& extension : vk::enumerateInstanceExtensionProperties()) {
             std::cout << "\t" << extension.extensionName << std::endl;
         }
+    }
+
+    bool checkValidationLayerSupport() {
+
+        std::cout << "available layers:" << std::endl;
+
+        for (const auto& layer : vk::enumerateInstanceLayerProperties()) {
+            std::cout << "\t" << layer.layerName << std::endl;
+        }
+
+        auto availableLayers = vk::enumerateInstanceLayerProperties();
+        for (const char* layerName : validationLayers) {
+            bool layerFound = false;
+
+            for (const auto& layerProperties : availableLayers) {
+                if (strcmp(layerName, layerProperties.layerName) == 0) {
+                    layerFound = true;
+                    break;
+                }
+            }
+
+            if (!layerFound) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
 };
