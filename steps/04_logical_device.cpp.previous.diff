@@ -1,0 +1,74 @@
+--- a/03_physical_device_selection.cpp
++++ b/04_logical_device.cpp
+@@ -61,6 +61,9 @@ private:
+     VkDebugUtilsMessengerEXT callback;
+ 
+     vk::PhysicalDevice physicalDevice;
++    vk::UniqueDevice device;
++
++    vk::Queue graphicsQueue;
+ 
+     void initWindow() {
+         glfwInit();
+@@ -75,6 +78,7 @@ private:
+         createInstance();
+         setupDebugCallback();
+         pickPhysicalDevice();
++        createLogicalDevice();
+     }
+ 
+     void mainLoop() {
+@@ -84,12 +88,12 @@ private:
+     }
+ 
+     void cleanup() {
++        // NOTE: instance destruction is handled by UniqueInstance, same for device
++
+         if (enableValidationLayers) {
+             DestroyDebugUtilsMessengerEXT(*instance, callback, nullptr);
+         }
+ 
+-        // NOTE: instance destruction is handled by UniqueInstance
+-
+         glfwDestroyWindow(window);
+ 
+         glfwTerminate();
+@@ -169,6 +173,38 @@ private:
+         }
+     }
+ 
++    void createLogicalDevice() {
++        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
++        float queuePriority = 1.0f;
++        auto queueCreateInfo = vk::DeviceQueueCreateInfo(
++            vk::DeviceQueueCreateFlags(),
++            indices.graphicsFamily.value(),
++            1, // queueCount
++            &queuePriority
++        );
++
++        auto deviceFeatures = vk::PhysicalDeviceFeatures();
++        auto createInfo = vk::DeviceCreateInfo(
++            vk::DeviceCreateFlags(),
++            1, &queueCreateInfo
++        );
++        createInfo.pEnabledFeatures = &deviceFeatures;
++        createInfo.enabledExtensionCount = 0;
++
++        if (enableValidationLayers) {
++            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
++            createInfo.ppEnabledLayerNames = validationLayers.data();
++        }
++
++        try {
++            device = physicalDevice.createDeviceUnique(createInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create logical device!");
++        }
++
++        graphicsQueue = device->getQueue(indices.graphicsFamily.value(), 0);
++    }
++
+     bool isDeviceSuitable(const vk::PhysicalDevice& device) {
+         QueueFamilyIndices indices = findQueueFamilies(device);
+ 
