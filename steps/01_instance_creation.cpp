@@ -19,6 +19,7 @@ public:
 
 private:
     GLFWwindow* window;
+
     vk::UniqueInstance instance;
 
     void initWindow() {

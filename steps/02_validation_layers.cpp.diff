@@ -1,0 +1,121 @@
+--- a/../../VulkanTutorial/code/02_validation_layers.cpp
++++ b/02_validation_layers.cpp
+@@ -1,4 +1,4 @@
+-#define GLFW_INCLUDE_VULKAN
++#include <vulkan/vulkan.hpp>
+ #include <GLFW/glfw3.h>
+ 
+ #include <iostream>
+@@ -48,7 +48,7 @@ public:
+ private:
+     GLFWwindow* window;
+ 
+-    VkInstance instance;
++    vk::UniqueInstance instance;
+     VkDebugUtilsMessengerEXT callback;
+ 
+     void initWindow() {
+@@ -73,10 +73,10 @@ private:
+ 
+     void cleanup() {
+         if (enableValidationLayers) {
+-            DestroyDebugUtilsMessengerEXT(instance, callback, nullptr);
++            DestroyDebugUtilsMessengerEXT(*instance, callback, nullptr);
+         }
+ 
+-        vkDestroyInstance(instance, nullptr);
++        // NOTE: instance destruction is handled by UniqueInstance
+ 
+         glfwDestroyWindow(window);
+ 
+@@ -88,30 +88,32 @@ private:
+             throw std::runtime_error("validation layers requested, but not available!");
+         }
+ 
+-        VkApplicationInfo appInfo = {};
+-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+-        appInfo.pApplicationName = "Hello Triangle";
+-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+-        appInfo.pEngineName = "No Engine";
+-        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+-        appInfo.apiVersion = VK_API_VERSION_1_0;
+-
+-        VkInstanceCreateInfo createInfo = {};
+-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+-        createInfo.pApplicationInfo = &appInfo;
+-
++        auto appInfo = vk::ApplicationInfo(
++            "Hello Triangle",
++            VK_MAKE_VERSION(1, 0, 0),
++            "No Engine",
++            VK_MAKE_VERSION(1, 0, 0),
++            VK_API_VERSION_1_0
++        );
++        
+         auto extensions = getRequiredExtensions();
+-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
+-        createInfo.ppEnabledExtensionNames = extensions.data();
++
++        auto createInfo = vk::InstanceCreateInfo(
++            vk::InstanceCreateFlags(),
++            &appInfo,
++            0, nullptr, // enabled layers
++            static_cast<uint32_t>(extensions.size()), extensions.data() // enabled extensions
++        );
+ 
+         if (enableValidationLayers) {
+             createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+             createInfo.ppEnabledLayerNames = validationLayers.data();
+-        } else {
+-            createInfo.enabledLayerCount = 0;
+         }
+ 
+-        if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
++        try {
++            instance = vk::createInstanceUnique(createInfo, nullptr);
++        }
++        catch (vk::SystemError err) {
+             throw std::runtime_error("failed to create instance!");
+         }
+     }
+@@ -119,13 +121,20 @@ private:
+     void setupDebugCallback() {
+         if (!enableValidationLayers) return;
+ 
+-        VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
+-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+-        createInfo.pfnUserCallback = debugCallback;
++        auto createInfo = vk::DebugUtilsMessengerCreateInfoEXT(
++            vk::DebugUtilsMessengerCreateFlagsEXT(),
++            vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
++            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
++            debugCallback,
++            nullptr
++        );
+ 
+-        if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &callback) != VK_SUCCESS) {
++        // NOTE: Vulkan-hpp has methods for this, but they trigger linking errors...
++        //instance->createDebugUtilsMessengerEXT(createInfo);
++        //instance->createDebugUtilsMessengerEXTUnique(createInfo);
++
++        // NOTE: reinterpret_cast is also used by vulkan.hpp internally for all these structs
++        if (CreateDebugUtilsMessengerEXT(*instance, reinterpret_cast<const VkDebugUtilsMessengerCreateInfoEXT*>(&createInfo), nullptr, &callback) != VK_SUCCESS) {
+             throw std::runtime_error("failed to set up debug callback!");
+         }
+     }
+@@ -145,12 +154,7 @@ private:
+     }
+ 
+     bool checkValidationLayerSupport() {
+-        uint32_t layerCount;
+-        vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+-
+-        std::vector<VkLayerProperties> availableLayers(layerCount);
+-        vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
+-
++        auto availableLayers = vk::enumerateInstanceLayerProperties();
+         for (const char* layerName : validationLayers) {
+             bool layerFound = false;
+ 

@@ -10,7 +10,7 @@
  
  private:
      GLFWwindow* window;
--
+
 -    VkInstance instance;
 +    vk::UniqueInstance instance;
  
