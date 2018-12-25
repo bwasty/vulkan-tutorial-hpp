@@ -1,0 +1,69 @@
+--- a/00_base_code.cpp
++++ b/01_instance_creation.cpp
+@@ -20,6 +20,8 @@ public:
+ private:
+     GLFWwindow* window;
+ 
++    vk::UniqueInstance instance;
++
+     void initWindow() {
+         glfwInit();
+ 
+@@ -30,7 +32,7 @@ private:
+     }
+ 
+     void initVulkan() {
+-
++        createInstance();
+     }
+ 
+     void mainLoop() {
+@@ -40,10 +42,48 @@ private:
+     }
+ 
+     void cleanup() {
++        // NOTE: instance destruction is handled by UniqueInstance
++
+         glfwDestroyWindow(window);
+ 
+         glfwTerminate();
+     }
++
++    void createInstance() {
++        auto appInfo = vk::ApplicationInfo(
++            "Hello Triangle",
++            VK_MAKE_VERSION(1, 0, 0),
++            "No Engine",
++            VK_MAKE_VERSION(1, 0, 0),
++            VK_API_VERSION_1_0
++        );
++        
++        uint32_t glfwExtensionCount = 0;
++        const char** glfwExtensions;
++
++        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
++
++        auto createInfo = vk::InstanceCreateInfo(
++            vk::InstanceCreateFlags(),
++            &appInfo,
++            0, nullptr, // enabled layers
++            glfwExtensionCount, glfwExtensions // enabled extensions
++        );
++
++        try {
++            instance = vk::createInstanceUnique(createInfo, nullptr);
++        }
++        catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create instance!");
++        }
++
++        std::cout << "available extensions:" << std::endl;
++
++        for (const auto& extension : vk::enumerateInstanceExtensionProperties()) {
++            std::cout << "\t" << extension.extensionName << std::endl;
++        }
++    }
++
+ };
+ 
+ int main() {
