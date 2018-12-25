@@ -1,0 +1,94 @@
+--- a/02_validation_layers.cpp
++++ b/03_physical_device_selection.cpp
+@@ -6,6 +6,7 @@
+ #include <vector>
+ #include <cstring>
+ #include <cstdlib>
++#include <optional>
+ 
+ const int WIDTH = 800;
+ const int HEIGHT = 600;
+@@ -36,6 +37,14 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
+     }
+ }
+ 
++struct QueueFamilyIndices {
++    std::optional<uint32_t> graphicsFamily;
++
++    bool isComplete() {
++        return graphicsFamily.has_value();
++    }
++};
++
+ class HelloTriangleApplication {
+ public:
+     void run() {
+@@ -51,6 +60,8 @@ private:
+     vk::UniqueInstance instance;
+     VkDebugUtilsMessengerEXT callback;
+ 
++    vk::PhysicalDevice physicalDevice;
++
+     void initWindow() {
+         glfwInit();
+ 
+@@ -63,6 +74,7 @@ private:
+     void initVulkan() {
+         createInstance();
+         setupDebugCallback();
++        pickPhysicalDevice();
+     }
+ 
+     void mainLoop() {
+@@ -139,6 +151,51 @@ private:
+         }
+     }
+ 
++    void pickPhysicalDevice() {
++        auto devices = instance->enumeratePhysicalDevices();
++        if (devices.size() == 0) {
++            throw std::runtime_error("failed to find GPUs with Vulkan support!");
++        }
++
++        for (const auto& device : devices) {
++            if (isDeviceSuitable(device)) {
++                physicalDevice = device;
++                break;
++            }
++        }
++
++        if (!physicalDevice) {
++            throw std::runtime_error("failed to find a suitable GPU!");
++        }
++    }
++
++    bool isDeviceSuitable(const vk::PhysicalDevice& device) {
++        QueueFamilyIndices indices = findQueueFamilies(device);
++
++        return indices.isComplete();
++    }
++
++    QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device) {
++        QueueFamilyIndices indices;
++
++        auto queueFamilies = device.getQueueFamilyProperties();
++
++        int i = 0;
++        for (const auto& queueFamily : queueFamilies) {
++            if (queueFamily.queueCount > 0 && queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
++                indices.graphicsFamily = i;
++            }
++
++            if (indices.isComplete()) {
++                break;
++            }
++
++            i++;
++        }
++
++        return indices;
++    }
++
+     std::vector<const char*> getRequiredExtensions() {
+         uint32_t glfwExtensionCount = 0;
+         const char** glfwExtensions;
