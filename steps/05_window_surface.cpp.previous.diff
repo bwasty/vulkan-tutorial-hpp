@@ -1,0 +1,128 @@
+--- a/04_logical_device.cpp
++++ b/05_window_surface.cpp
+@@ -7,6 +7,7 @@
+ #include <cstring>
+ #include <cstdlib>
+ #include <optional>
++#include <set>
+ 
+ const int WIDTH = 800;
+ const int HEIGHT = 600;
+@@ -39,9 +40,10 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
+ 
+ struct QueueFamilyIndices {
+     std::optional<uint32_t> graphicsFamily;
++    std::optional<uint32_t> presentFamily;
+ 
+     bool isComplete() {
+-        return graphicsFamily.has_value();
++        return graphicsFamily.has_value() && presentFamily.has_value();
+     }
+ };
+ 
+@@ -59,24 +61,26 @@ private:
+ 
+     vk::UniqueInstance instance;
+     VkDebugUtilsMessengerEXT callback;
++    vk::SurfaceKHR surface;
+ 
+     vk::PhysicalDevice physicalDevice;
+     vk::UniqueDevice device;
+ 
+     vk::Queue graphicsQueue;
++    vk::Queue presentQueue;
+ 
+     void initWindow() {
+         glfwInit();
+ 
+         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+         glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+-
+         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+     }
+ 
+     void initVulkan() {
+         createInstance();
+         setupDebugCallback();
++        createSurface();
+         pickPhysicalDevice();
+         createLogicalDevice();
+     }
+@@ -90,6 +94,9 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        // surface is created by glfw, therefore not using a Unique handle
++        instance->destroySurfaceKHR(surface);
++
+         if (enableValidationLayers) {
+             DestroyDebugUtilsMessengerEXT(*instance, callback, nullptr);
+         }
+@@ -155,6 +162,14 @@ private:
+         }
+     }
+ 
++    void createSurface() {
++        VkSurfaceKHR rawSurface;
++        if (glfwCreateWindowSurface(*instance, window, nullptr, &rawSurface) != VK_SUCCESS) {
++            throw std::runtime_error("failed to create window surface!");
++        }
++        surface = rawSurface;
++    }
++
+     void pickPhysicalDevice() {
+         auto devices = instance->enumeratePhysicalDevices();
+         if (devices.size() == 0) {
+@@ -175,18 +190,26 @@ private:
+ 
+     void createLogicalDevice() {
+         QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
++
++        std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
++        std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
++
+         float queuePriority = 1.0f;
+-        auto queueCreateInfo = vk::DeviceQueueCreateInfo(
+-            vk::DeviceQueueCreateFlags(),
+-            indices.graphicsFamily.value(),
+-            1, // queueCount
+-            &queuePriority
+-        );
++
++        for (uint32_t queueFamily : uniqueQueueFamilies) {
++            queueCreateInfos.push_back({
++                vk::DeviceQueueCreateFlags(),
++                queueFamily,
++                1, // queueCount
++                &queuePriority
++            });
++        }
+ 
+         auto deviceFeatures = vk::PhysicalDeviceFeatures();
+         auto createInfo = vk::DeviceCreateInfo(
+             vk::DeviceCreateFlags(),
+-            1, &queueCreateInfo
++            static_cast<uint32_t>(queueCreateInfos.size()), 
++            queueCreateInfos.data()
+         );
+         createInfo.pEnabledFeatures = &deviceFeatures;
+         createInfo.enabledExtensionCount = 0;
+@@ -203,6 +226,7 @@ private:
+         }
+ 
+         graphicsQueue = device->getQueue(indices.graphicsFamily.value(), 0);
++        presentQueue = device->getQueue(indices.presentFamily.value(), 0);
+     }
+ 
+     bool isDeviceSuitable(const vk::PhysicalDevice& device) {
+@@ -222,6 +246,10 @@ private:
+                 indices.graphicsFamily = i;
+             }
+ 
++            if (queueFamily.queueCount > 0 && device.getSurfaceSupportKHR(i, surface)) {
++                indices.presentFamily = i;
++            }
++
+             if (indices.isComplete()) {
+                 break;
+             }
