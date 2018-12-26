@@ -1,0 +1,63 @@
+--- a/06_swap_chain_creation.cpp
++++ b/07_image_views.cpp
+@@ -85,6 +85,7 @@ private:
+     std::vector<vk::Image> swapChainImages;
+     vk::Format swapChainImageFormat;
+     vk::Extent2D swapChainExtent;
++    std::vector<vk::ImageView> swapChainImageViews;
+ 
+     void initWindow() {
+         glfwInit();
+@@ -101,6 +102,7 @@ private:
+         pickPhysicalDevice();
+         createLogicalDevice();
+         createSwapChain();
++        createImageViews();
+     }
+ 
+     void mainLoop() {
+@@ -112,6 +114,10 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        for (auto imageView : swapChainImageViews) {
++            device->destroyImageView(imageView);
++        }
++
+         // not using UniqeSwapchain to destroy in correct order - before the surface
+         device->destroySwapchainKHR(swapChain);
+ 
+@@ -308,6 +314,33 @@ private:
+         swapChainExtent = extent;
+     }
+ 
++    void createImageViews() {
++        swapChainImageViews.resize(swapChainImages.size());
++
++        for (size_t i = 0; i < swapChainImages.size(); i++) {
++            vk::ImageViewCreateInfo createInfo = {};
++            createInfo.image = swapChainImages[i];
++            createInfo.viewType = vk::ImageViewType::e2D;
++            createInfo.format = swapChainImageFormat;
++            createInfo.components.r = vk::ComponentSwizzle::eIdentity;
++            createInfo.components.g = vk::ComponentSwizzle::eIdentity;
++            createInfo.components.b = vk::ComponentSwizzle::eIdentity;
++            createInfo.components.a = vk::ComponentSwizzle::eIdentity;
++            createInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
++            createInfo.subresourceRange.baseMipLevel = 0;
++            createInfo.subresourceRange.levelCount = 1;
++            createInfo.subresourceRange.baseArrayLayer = 0;
++            createInfo.subresourceRange.layerCount = 1;
++
++            try {
++                swapChainImageViews[i] = device->createImageView(createInfo);
++            }
++            catch (vk::SystemError err) {
++                throw std::runtime_error("failed to create image views!");
++            }
++        }
++    }
++
+     vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
+         if (availableFormats.size() == 1 && availableFormats[0].format == vk::Format::eUndefined) {
+             return { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear };
