@@ -1,0 +1,75 @@
+--- a/08_graphics_pipeline.cpp
++++ b/09_shader_modules.cpp
+@@ -2,6 +2,7 @@
+ #include <GLFW/glfw3.h>
+ 
+ #include <iostream>
++#include <fstream>
+ #include <stdexcept>
+ #include <algorithm>
+ #include <vector>
+@@ -343,7 +344,38 @@ private:
+     }
+ 
+     void createGraphicsPipeline() {
+-
++        auto vertShaderCode = readFile("shaders/vert.spv");
++        auto fragShaderCode = readFile("shaders/frag.spv");
++
++        auto vertShaderModule = createShaderModule(vertShaderCode);
++        auto fragShaderModule = createShaderModule(fragShaderCode);
++
++        vk::PipelineShaderStageCreateInfo shaderStages[] = { 
++            {
++                vk::PipelineShaderStageCreateFlags(),
++                vk::ShaderStageFlagBits::eVertex,
++                *vertShaderModule,
++                "main"
++            }, 
++            {
++                vk::PipelineShaderStageCreateFlags(),
++                vk::ShaderStageFlagBits::eFragment,
++                *fragShaderModule,
++                "main"
++            } 
++        };
++    }   
++
++    vk::UniqueShaderModule createShaderModule(const std::vector<char>& code) {
++        try {
++            return device->createShaderModuleUnique({
++                vk::ShaderModuleCreateFlags(),
++                code.size(), 
++                reinterpret_cast<const uint32_t*>(code.data())
++            });
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create shader module!");
++        }
+     }
+ 
+     vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
+@@ -481,6 +513,24 @@ private:
+         return true;
+     }
+ 
++    static std::vector<char> readFile(const std::string& filename) {
++        std::ifstream file(filename, std::ios::ate | std::ios::binary);
++
++        if (!file.is_open()) {
++            throw std::runtime_error("failed to open file!");
++        }
++
++        size_t fileSize = (size_t)file.tellg();
++        std::vector<char> buffer(fileSize);
++
++        file.seekg(0);
++        file.read(buffer.data(), fileSize);
++
++        file.close();
++
++        return buffer;
++    }
++
+     static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
+         std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+ 
