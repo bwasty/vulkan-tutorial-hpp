@@ -1,0 +1,21 @@
+--- a/07_image_views.cpp
++++ b/08_graphics_pipeline.cpp
+@@ -103,6 +103,7 @@ private:
+         createLogicalDevice();
+         createSwapChain();
+         createImageViews();
++        createGraphicsPipeline();
+     }
+ 
+     void mainLoop() {
+@@ -341,6 +342,10 @@ private:
+         }
+     }
+ 
++    void createGraphicsPipeline() {
++
++    }
++
+     vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
+         if (availableFormats.size() == 1 && availableFormats[0].format == vk::Format::eUndefined) {
+             return { vk::Format::eB8G8R8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear };
