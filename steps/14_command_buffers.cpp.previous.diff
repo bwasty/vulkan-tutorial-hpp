@@ -1,0 +1,101 @@
+--- a/13_framebuffers.cpp
++++ b/14_command_buffers.cpp
+@@ -93,6 +93,9 @@ private:
+     vk::PipelineLayout pipelineLayout;
+     vk::Pipeline graphicsPipeline;
+ 
++    VkCommandPool commandPool;
++    std::vector<vk::CommandBuffer, std::allocator<vk::CommandBuffer>> commandBuffers;
++
+     void initWindow() {
+         glfwInit();
+ 
+@@ -112,6 +115,8 @@ private:
+         createRenderPass();
+         createGraphicsPipeline();
+         createFramebuffers();
++        createCommandPool();
++        createCommandBuffers();
+     }
+ 
+     void mainLoop() {
+@@ -123,6 +128,8 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        device->destroyCommandPool(commandPool);
++
+         for (auto framebuffer : swapChainFramebuffers) {
+             device->destroyFramebuffer(framebuffer);
+         }
+@@ -521,6 +528,70 @@ private:
+             }
+         }
+     }
++    void createCommandPool() {
++        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
++
++        vk::CommandPoolCreateInfo poolInfo = {};
++        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
++
++        try {
++            commandPool = device->createCommandPool(poolInfo);
++        }
++        catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create command pool!");
++        }
++    }
++
++    void createCommandBuffers() {
++        commandBuffers.resize(swapChainFramebuffers.size());
++
++        vk::CommandBufferAllocateInfo allocInfo = {};
++        allocInfo.commandPool = commandPool;
++        allocInfo.level = vk::CommandBufferLevel::ePrimary;
++        allocInfo.commandBufferCount = (uint32_t)commandBuffers.size();
++
++        try {
++            commandBuffers = device->allocateCommandBuffers(allocInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to allocate command buffers!");
++        }
++
++        for (size_t i = 0; i < commandBuffers.size(); i++) {
++            vk::CommandBufferBeginInfo beginInfo = {};
++            beginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
++
++            try {
++                commandBuffers[i].begin(beginInfo);
++            }
++            catch (vk::SystemError err) {
++                throw std::runtime_error("failed to begin recording command buffer!");
++            }
++
++            vk::RenderPassBeginInfo renderPassInfo = {};
++            renderPassInfo.renderPass = renderPass;
++            renderPassInfo.framebuffer = swapChainFramebuffers[i];
++            renderPassInfo.renderArea.offset = { 0, 0 };
++            renderPassInfo.renderArea.extent = swapChainExtent;
++
++            vk::ClearValue clearColor = { std::array<float, 4>{ 0.0f, 0.0f, 0.0f, 1.0f } };
++            renderPassInfo.clearValueCount = 1;
++            renderPassInfo.pClearValues = &clearColor;
++
++            commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
++
++                commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
++
++                commandBuffers[i].draw(3, 1, 0, 0);
++
++            commandBuffers[i].endRenderPass();
++
++            try {
++                commandBuffers[i].end();
++            } catch (vk::SystemError err) {
++                throw std::runtime_error("failed to record command buffer!");
++            }
++        }
++    }
+ 
+     vk::UniqueShaderModule createShaderModule(const std::vector<char>& code) {
+         try {
