@@ -1,0 +1,60 @@
+--- a/12_graphics_pipeline_complete.cpp
++++ b/13_framebuffers.cpp
+@@ -87,6 +87,7 @@ private:
+     vk::Format swapChainImageFormat;
+     vk::Extent2D swapChainExtent;
+     std::vector<vk::ImageView> swapChainImageViews;
++    std::vector<vk::Framebuffer> swapChainFramebuffers;
+ 
+     vk::RenderPass renderPass;
+     vk::PipelineLayout pipelineLayout;
+@@ -110,6 +111,7 @@ private:
+         createImageViews();
+         createRenderPass();
+         createGraphicsPipeline();
++        createFramebuffers();
+     }
+ 
+     void mainLoop() {
+@@ -121,6 +123,10 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        for (auto framebuffer : swapChainFramebuffers) {
++            device->destroyFramebuffer(framebuffer);
++        }
++
+         device->destroyPipeline(graphicsPipeline);
+         device->destroyPipelineLayout(pipelineLayout);
+         device->destroyRenderPass(renderPass);
+@@ -492,6 +498,30 @@ private:
+         }
+     }   
+ 
++    void createFramebuffers() {
++        swapChainFramebuffers.resize(swapChainImageViews.size());
++
++        for (size_t i = 0; i < swapChainImageViews.size(); i++) {
++            vk::ImageView attachments[] = {
++                swapChainImageViews[i]
++            };
++
++            vk::FramebufferCreateInfo framebufferInfo = {};
++            framebufferInfo.renderPass = renderPass;
++            framebufferInfo.attachmentCount = 1;
++            framebufferInfo.pAttachments = attachments;
++            framebufferInfo.width = swapChainExtent.width;
++            framebufferInfo.height = swapChainExtent.height;
++            framebufferInfo.layers = 1;
++
++            try {
++                swapChainFramebuffers[i] = device->createFramebuffer(framebufferInfo);
++            } catch (vk::SystemError err) {
++                throw std::runtime_error("failed to create framebuffer!");
++            }
++        }
++    }
++
+     vk::UniqueShaderModule createShaderModule(const std::vector<char>& code) {
+         try {
+             return device->createShaderModuleUnique({
