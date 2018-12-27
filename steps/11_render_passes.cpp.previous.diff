@@ -1,0 +1,140 @@
+--- a/09_shader_modules.cpp
++++ b/11_render_passes.cpp
+@@ -88,6 +88,9 @@ private:
+     vk::Extent2D swapChainExtent;
+     std::vector<vk::ImageView> swapChainImageViews;
+ 
++    vk::RenderPass renderPass;
++    vk::PipelineLayout pipelineLayout;
++
+     void initWindow() {
+         glfwInit();
+ 
+@@ -104,6 +107,7 @@ private:
+         createLogicalDevice();
+         createSwapChain();
+         createImageViews();
++        createRenderPass();
+         createGraphicsPipeline();
+     }
+ 
+@@ -116,6 +120,9 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        device->destroyPipelineLayout(pipelineLayout);
++        device->destroyRenderPass(renderPass);
++
+         for (auto imageView : swapChainImageViews) {
+             device->destroyImageView(imageView);
+         }
+@@ -343,6 +350,39 @@ private:
+         }
+     }
+ 
++    void createRenderPass() {
++        vk::AttachmentDescription colorAttachment = {};
++        colorAttachment.format = swapChainImageFormat;
++        colorAttachment.samples = vk::SampleCountFlagBits::e1;
++        colorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
++        colorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
++        colorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
++        colorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
++        colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
++        colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
++
++        vk::AttachmentReference colorAttachmentRef = {};
++        colorAttachmentRef.attachment = 0;
++        colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
++
++        vk::SubpassDescription subpass = {};
++        subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
++        subpass.colorAttachmentCount = 1;
++        subpass.pColorAttachments = &colorAttachmentRef;
++
++        vk::RenderPassCreateInfo renderPassInfo = {};
++        renderPassInfo.attachmentCount = 1;
++        renderPassInfo.pAttachments = &colorAttachment;
++        renderPassInfo.subpassCount = 1;
++        renderPassInfo.pSubpasses = &subpass;
++
++        try {
++            renderPass = device->createRenderPass(renderPassInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create render pass!");
++        }
++    }
++
+     void createGraphicsPipeline() {
+         auto vertShaderCode = readFile("shaders/vert.spv");
+         auto fragShaderCode = readFile("shaders/frag.spv");
+@@ -364,6 +404,69 @@ private:
+                 "main"
+             } 
+         };
++
++        vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {};
++        vertexInputInfo.vertexBindingDescriptionCount = 0;
++        vertexInputInfo.vertexAttributeDescriptionCount = 0;
++
++        vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {};
++        inputAssembly.topology = vk::PrimitiveTopology::eTriangleList;
++        inputAssembly.primitiveRestartEnable = VK_FALSE;
++
++        vk::Viewport viewport = {};
++        viewport.x = 0.0f;
++        viewport.y = 0.0f;
++        viewport.width = (float)swapChainExtent.width;
++        viewport.height = (float)swapChainExtent.height;
++        viewport.minDepth = 0.0f;
++        viewport.maxDepth = 1.0f;
++
++        vk::Rect2D scissor = {};
++        scissor.offset = { 0, 0 };
++        scissor.extent = swapChainExtent;
++
++        vk::PipelineViewportStateCreateInfo viewportState = {};
++        viewportState.viewportCount = 1;
++        viewportState.pViewports = &viewport;
++        viewportState.scissorCount = 1;
++        viewportState.pScissors = &scissor;
++
++        vk::PipelineRasterizationStateCreateInfo rasterizer = {};
++        rasterizer.depthClampEnable = VK_FALSE;
++        rasterizer.rasterizerDiscardEnable = VK_FALSE;
++        rasterizer.polygonMode = vk::PolygonMode::eFill;
++        rasterizer.lineWidth = 1.0f;
++        rasterizer.cullMode = vk::CullModeFlagBits::eBack;
++        rasterizer.frontFace = vk::FrontFace::eClockwise;
++        rasterizer.depthBiasEnable = VK_FALSE;
++
++        vk::PipelineMultisampleStateCreateInfo multisampling = {};
++        multisampling.sampleShadingEnable = VK_FALSE;
++        multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
++
++        vk::PipelineColorBlendAttachmentState colorBlendAttachment = {};
++        colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
++        colorBlendAttachment.blendEnable = VK_FALSE;
++
++        vk::PipelineColorBlendStateCreateInfo colorBlending = {};
++        colorBlending.logicOpEnable = VK_FALSE;
++        colorBlending.logicOp = vk::LogicOp::eCopy;
++        colorBlending.attachmentCount = 1;
++        colorBlending.pAttachments = &colorBlendAttachment;
++        colorBlending.blendConstants[0] = 0.0f;
++        colorBlending.blendConstants[1] = 0.0f;
++        colorBlending.blendConstants[2] = 0.0f;
++        colorBlending.blendConstants[3] = 0.0f;
++
++        vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {};
++        pipelineLayoutInfo.setLayoutCount = 0;
++        pipelineLayoutInfo.pushConstantRangeCount = 0;
++
++        try {
++            pipelineLayout = device->createPipelineLayout(pipelineLayoutInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create pipeline layout!");
++        }
+     }   
+ 
+     vk::UniqueShaderModule createShaderModule(const std::vector<char>& code) {
