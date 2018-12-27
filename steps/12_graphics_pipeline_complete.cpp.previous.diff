@@ -1,0 +1,46 @@
+--- a/11_render_passes.cpp
++++ b/12_graphics_pipeline_complete.cpp
+@@ -90,6 +90,7 @@ private:
+ 
+     vk::RenderPass renderPass;
+     vk::PipelineLayout pipelineLayout;
++    vk::Pipeline graphicsPipeline;
+ 
+     void initWindow() {
+         glfwInit();
+@@ -120,6 +121,7 @@ private:
+     void cleanup() {
+         // NOTE: instance destruction is handled by UniqueInstance, same for device
+ 
++        device->destroyPipeline(graphicsPipeline);
+         device->destroyPipelineLayout(pipelineLayout);
+         device->destroyRenderPass(renderPass);
+ 
+@@ -467,6 +469,27 @@ private:
+         } catch (vk::SystemError err) {
+             throw std::runtime_error("failed to create pipeline layout!");
+         }
++
++        vk::GraphicsPipelineCreateInfo pipelineInfo = {};
++        pipelineInfo.stageCount = 2;
++        pipelineInfo.pStages = shaderStages;
++        pipelineInfo.pVertexInputState = &vertexInputInfo;
++        pipelineInfo.pInputAssemblyState = &inputAssembly;
++        pipelineInfo.pViewportState = &viewportState;
++        pipelineInfo.pRasterizationState = &rasterizer;
++        pipelineInfo.pMultisampleState = &multisampling;
++        pipelineInfo.pColorBlendState = &colorBlending;
++        pipelineInfo.layout = pipelineLayout;
++        pipelineInfo.renderPass = renderPass;
++        pipelineInfo.subpass = 0;
++        pipelineInfo.basePipelineHandle = nullptr;
++
++        try {
++            graphicsPipeline = device->createGraphicsPipeline(nullptr, pipelineInfo);
++        }
++        catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create graphics pipeline!");
++        }
+     }   
+ 
+     vk::UniqueShaderModule createShaderModule(const std::vector<char>& code) {
