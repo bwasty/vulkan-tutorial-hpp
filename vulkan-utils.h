@@ -6,84 +6,7 @@
 
 namespace vkutils {
 
-vk::UniqueInstance createInstance(
-    const char* applicationName = "Application",
-    bool enableValidationLayers = false, 
-    const std::vector<const char*>& validationLayers = { "VK_LAYER_LUNARG_standard_validation" }
-) {
-    if (enableValidationLayers && !checkValidationLayerSupport(validationLayers)) {
-        throw std::runtime_error("validation layers requested, but not available!");
-    }
-
-    auto appInfo = vk::ApplicationInfo(
-        applicationName,
-        VK_MAKE_VERSION(1, 0, 0),
-        "No Engine",
-        VK_MAKE_VERSION(1, 0, 0),
-        VK_API_VERSION_1_0
-    );
-
-    auto extensions = getRequiredExtensions(enableValidationLayers);
-
-    auto createInfo = vk::InstanceCreateInfo(
-        vk::InstanceCreateFlags(),
-        &appInfo,
-        0, nullptr, // enabled layers
-        static_cast<uint32_t>(extensions.size()), extensions.data() // enabled extensions
-    );
-
-    if (enableValidationLayers) {
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
-    }
-
-    try {
-        return vk::createInstanceUnique(createInfo, nullptr);
-    }
-    catch (vk::SystemError err) {
-        throw std::runtime_error("failed to create instance!");
-    }
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
-    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
-
-    return VK_FALSE;
-}
-
-VkDebugUtilsMessengerEXT setupDebugCallback(const vk::Instance& instance) {
-    auto createInfo = vk::DebugUtilsMessengerCreateInfoEXT(
-        vk::DebugUtilsMessengerCreateFlagsEXT(),
-        vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
-        vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
-        debugCallback,
-        nullptr
-    );
-
-    // NOTE: Vulkan-hpp has methods for this, but they trigger linking errors...
-    //instance->createDebugUtilsMessengerEXT(createInfo);
-    //instance->createDebugUtilsMessengerEXTUnique(createInfo);
-
-    VkDebugUtilsMessengerEXT callback;
-    // NOTE: reinterpret_cast is also used by vulkan.hpp internally for all these structs
-    if (CreateDebugUtilsMessengerEXT(instance, reinterpret_cast<const VkDebugUtilsMessengerCreateInfoEXT*>(&createInfo), nullptr, &callback) != VK_SUCCESS) {
-        throw std::runtime_error("failed to set up debug callback!");
-    }
-
-    return callback;
-}
-
-vk::SurfaceKHR createSurface(const vk::Instance& instance, GLFWwindow* window) {
-    VkSurfaceKHR rawSurface;
-    if (glfwCreateWindowSurface(instance, window, nullptr, &rawSurface) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create window surface!");
-    }
-
-    vk::SurfaceKHR surface = rawSurface;
-    return surface;
-}
-
-////////
+namespace internal {
 
 std::vector<const char*> getRequiredExtensions(bool enableValidationLayers) {
     uint32_t glfwExtensionCount = 0;
@@ -136,4 +59,86 @@ void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT
     }
 }
 
-} // namespace
+} // namespace internal
+
+vk::UniqueInstance createInstance(
+    const char* applicationName = "Application",
+    bool enableValidationLayers = false, 
+    const std::vector<const char*>& validationLayers = { "VK_LAYER_LUNARG_standard_validation" }
+) {
+    if (enableValidationLayers && !internal::checkValidationLayerSupport(validationLayers)) {
+        throw std::runtime_error("validation layers requested, but not available!");
+    }
+
+    auto appInfo = vk::ApplicationInfo(
+        applicationName,
+        VK_MAKE_VERSION(1, 0, 0),
+        "No Engine",
+        VK_MAKE_VERSION(1, 0, 0),
+        VK_API_VERSION_1_0
+    );
+
+    // TODO!: remove glfw requirement from createInstance
+    auto extensions = internal::getRequiredExtensions(enableValidationLayers);
+
+    auto createInfo = vk::InstanceCreateInfo(
+        vk::InstanceCreateFlags(),
+        &appInfo,
+        0, nullptr, // enabled layers
+        static_cast<uint32_t>(extensions.size()), extensions.data() // enabled extensions
+    );
+
+    if (enableValidationLayers) {
+        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        createInfo.ppEnabledLayerNames = validationLayers.data();
+    }
+
+    try {
+        return vk::createInstanceUnique(createInfo, nullptr);
+    }
+    catch (vk::SystemError err) {
+        throw std::runtime_error("failed to create instance!");
+    }
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData, void* pUserData) {
+    std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+
+    return VK_FALSE;
+}
+
+// TODO!: add method destroyDebugCallback? unique ptr?
+VkDebugUtilsMessengerEXT setupDebugCallback(const vk::Instance& instance) {
+    auto createInfo = vk::DebugUtilsMessengerCreateInfoEXT(
+        vk::DebugUtilsMessengerCreateFlagsEXT(),
+        vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+        vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+        debugCallback,
+        nullptr
+    );
+
+    // NOTE: Vulkan-hpp has methods for this, but they trigger linking errors...
+    //instance->createDebugUtilsMessengerEXT(createInfo);
+    //instance->createDebugUtilsMessengerEXTUnique(createInfo);
+
+    VkDebugUtilsMessengerEXT callback;
+    // NOTE: reinterpret_cast is also used by vulkan.hpp internally for all these structs
+    if (internal::CreateDebugUtilsMessengerEXT(instance, reinterpret_cast<const VkDebugUtilsMessengerCreateInfoEXT*>(&createInfo), nullptr, &callback) != VK_SUCCESS) {
+        throw std::runtime_error("failed to set up debug callback!");
+    }
+
+    return callback;
+}
+
+// TODO!: unique...
+vk::SurfaceKHR createSurface(const vk::Instance& instance, GLFWwindow* window) {
+    VkSurfaceKHR rawSurface;
+    if (glfwCreateWindowSurface(instance, window, nullptr, &rawSurface) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create window surface!");
+    }
+
+    vk::SurfaceKHR surface = rawSurface;
+    return surface;
+}
+
+} // namespace vkutils
