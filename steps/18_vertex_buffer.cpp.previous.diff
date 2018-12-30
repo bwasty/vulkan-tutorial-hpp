@@ -1,0 +1,113 @@
+--- a/17_vertex_input.cpp
++++ b/18_vertex_buffer.cpp
+@@ -87,7 +87,7 @@ struct Vertex {
+ 
+         attributeDescriptions[1].binding = 0;
+         attributeDescriptions[1].location = 1;
+-        attributeDescriptions[1].format = vk::Format::eR32G32Sfloat;
++        attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
+         attributeDescriptions[1].offset = offsetof(Vertex, color);
+ 
+         return attributeDescriptions;
+@@ -133,7 +133,11 @@ private:
+     vk::PipelineLayout pipelineLayout;
+     vk::Pipeline graphicsPipeline;
+ 
+-    VkCommandPool commandPool;
++    vk::CommandPool commandPool;
++
++    vk::Buffer vertexBuffer;
++    vk::DeviceMemory vertexBufferMemory;
++
+     std::vector<vk::CommandBuffer, std::allocator<vk::CommandBuffer>> commandBuffers;
+ 
+     std::vector<vk::Semaphore> imageAvailableSemaphores;
+@@ -170,6 +174,7 @@ private:
+         createGraphicsPipeline();
+         createFramebuffers();
+         createCommandPool();
++        createVertexBuffer();
+         createCommandBuffers();
+         createSyncObjects();
+     }
+@@ -206,6 +211,9 @@ private:
+ 
+         cleanupSwapChain();
+ 
++        device->destroyBuffer(vertexBuffer);
++        device->freeMemory(vertexBufferMemory);
++
+         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+             device->destroySemaphore(renderFinishedSemaphores[i]);
+             device->destroySemaphore(imageAvailableSemaphores[i]);
+@@ -648,6 +656,49 @@ private:
+         }
+     }
+ 
++    void createVertexBuffer() {
++        vk::BufferCreateInfo bufferInfo = {};
++        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
++        bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
++        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
++
++        try {
++            vertexBuffer = device->createBuffer(bufferInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to create vertex buffer!");
++        }
++
++        vk::MemoryRequirements memRequirements = device->getBufferMemoryRequirements(vertexBuffer);
++
++        vk::MemoryAllocateInfo allocInfo = {};
++        allocInfo.allocationSize = memRequirements.size;
++        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
++        
++        try {
++            vertexBufferMemory = device->allocateMemory(allocInfo);
++        } catch (vk::SystemError err) {
++            throw std::runtime_error("failed to allocate vertex buffer memory!");
++        }
++
++        device->bindBufferMemory(vertexBuffer, vertexBufferMemory, 0);
++
++        void* data = device->mapMemory(vertexBufferMemory, 0, bufferInfo.size);
++            memcpy(data, vertices.data(), (size_t)bufferInfo.size);
++        device->unmapMemory(vertexBufferMemory);
++    }
++
++    uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
++        vk::PhysicalDeviceMemoryProperties memProperties = physicalDevice.getMemoryProperties();
++
++        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
++            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
++                return i;
++            }
++        }
++
++        throw std::runtime_error("failed to find suitable memory type!");
++    }
++
+     void createCommandBuffers() {
+         commandBuffers.resize(swapChainFramebuffers.size());
+ 
+@@ -687,7 +738,11 @@ private:
+ 
+                 commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
+ 
+-                commandBuffers[i].draw(3, 1, 0, 0);
++                vk::Buffer vertexBuffers[] = { vertexBuffer };
++                vk::DeviceSize offsets[] = { 0 };
++                commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, offsets);
++
++                commandBuffers[i].draw(static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+ 
+             commandBuffers[i].endRenderPass();
+ 
+@@ -772,7 +827,6 @@ private:
+         }
+ 
+         if (resultPresent == vk::Result::eSuboptimalKHR || resultPresent == vk::Result::eSuboptimalKHR || framebufferResized) {
+-            std::cout << "swap chain out of date/suboptimal/window resized - recreating" << std::endl;
+             framebufferResized = false;
+             recreateSwapChain();
+             return;
