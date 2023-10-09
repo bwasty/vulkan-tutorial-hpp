@@ -93,7 +93,7 @@ private:
     vk::PipelineLayout pipelineLayout;
     vk::Pipeline graphicsPipeline;
 
-    VkCommandPool commandPool;
+    vk::commandPool commandPool;
     std::vector<vk::CommandBuffer, std::allocator<vk::CommandBuffer>> commandBuffers;
 
     void initWindow() {
